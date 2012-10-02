@@ -2,11 +2,10 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
-	"strings"
 	"time"
+  zmq "github.com/alecthomas/gozmq"
 )
 
 type clientPool []net.Conn
@@ -14,10 +13,10 @@ type clientPool []net.Conn
 var clients clientPool
 
 func main() {
-	go sendPurges()
+	go setupPurgeReceiver()
 	clients = make(clientPool, 0)
 	defer clients.close()
-	ln, err := net.Listen("tcp", ":8080")
+	ln, err := net.Listen("tcp", ":8081")
 	checkError(err)
 	for {
 		conn, err := ln.Accept()
@@ -30,22 +29,30 @@ func main() {
 
 }
 
+func setupPurgeReceiver() (err error){
+    context, _ := zmq.NewContext()
+    defer context.Close()
+    receiver, _ := context.NewSocket(zmq.REP)
+    defer receiver.Close()
+    receiver.Bind("tcp://*:8080")
+    for {
+      b, _ := receiver.Recv(0)
+      clients.dispatchPurge(string(b))
+      receiver.Send([]byte("ok"),0)
+    }
+    return
+}
+
 func handleConnection(conn net.Conn) {
 	fmt.Println("New client", conn.RemoteAddr())
-    credentials, _ := ioutil.ReadAll(conn)
-	if strings.Contains(string(credentials), "200 194") {
-        fmt.Println("credentials:",credentials)
-		// flush the whole cache
-		sendPurge(conn, ".*")
-		// put it in the client pool
-		clients = append(clients, conn)
-	} else {
-        conn.Write([]byte("no you can't\n"))
-		conn.Close()
-	}
+	// flush the whole cache
+	sendPurge(conn, ".*")
+	// put it in the client pool
+	clients = append(clients, conn)
 }
 
 func (clients clientPool) dispatchPurge(pattern string) {
+  fmt.Println("Going to purge:", pattern)
 	for _, client := range clients {
 		err := sendPurge(client, pattern)
 		checkError(err)
@@ -64,13 +71,6 @@ func sendPurge(conn net.Conn, pattern string) (err error) {
 		fmt.Println("failed to send message")
 	}
 	return
-}
-
-func sendPurges() {
-	fmt.Println("going to purge in 20 secondes")
-	time.Sleep(20 * time.Second)
-	fmt.Println("ok time to purge")
-	clients.dispatchPurge(".*")
 }
 
 func checkError(err error) {
