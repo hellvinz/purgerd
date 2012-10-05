@@ -91,15 +91,15 @@ func connectClientToPusher(conn net.Conn) {
 		err := sendPurge(conn, string(b))
 		if err == syscall.EPIPE {
 			logger.Info(fmt.Sprintln("client gone", conn.RemoteAddr()))
-			remove(conn)
+			removeClient(conn)
 			break
 		}
 		logger.Debug(fmt.Sprintln("Client Purged", conn.RemoteAddr(), string(b)))
 	}
 }
 
-//remove remove a client connection from the clientPool
-func remove(conn net.Conn) {
+//removeClient remove a client connection from the clientPool
+func removeClient(conn net.Conn) {
 	newClients := make(clientPool, 0)
 	for _, client := range clients {
 		if client != conn {
@@ -125,7 +125,7 @@ func ping() {
 			n, err := client.Write([]byte("ping\n"))
 			if n == 0 || err == syscall.EPIPE {
 				logger.Debug(fmt.Sprintln("ping: client gone", client.RemoteAddr()))
-				remove(client)
+				removeClient(client)
 				break
 			}
 		}
