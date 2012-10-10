@@ -11,9 +11,11 @@ import (
 	"time"
 )
 
-type clientPool []net.Conn
+type clientPool struct {
+	connections []net.Conn
+}
 
-var clients clientPool
+var clients *clientPool
 var context zmq.Context
 var logger *syslog.Writer
 
@@ -40,8 +42,8 @@ func main() {
 //setupPurgeSenderAndListen create a clientPool and start listening to the socket where varnish cli connects
 //when a client connects it is calling the handleConnection handler
 func setupPurgeSenderAndListen(incomingAddress *string) {
-	clients = make(clientPool, 0)
-	go ping()
+	clients := &clientPool{connections: make([]net.Conn, 0)}
+	go clients.ping()
 	defer clients.close()
 	ln, err := net.Listen("tcp", *incomingAddress)
 	checkError(err)
@@ -55,7 +57,7 @@ func setupPurgeSenderAndListen(incomingAddress *string) {
 		// flush the whole cache of the new client
 		sendPurge(conn, ".*")
 		// put it in the client pool
-		clients = append(clients, conn)
+		clients.appendClient(conn)
 		// connect client to the pubsub purge
 		go connectClientToPusher(conn)
 	}
@@ -91,41 +93,47 @@ func connectClientToPusher(conn net.Conn) {
 		err := sendPurge(conn, string(b))
 		if err == syscall.EPIPE {
 			logger.Info(fmt.Sprintln("client gone", conn.RemoteAddr()))
-			removeClient(conn)
+			clients.removeClient(conn)
 			break
 		}
 		logger.Debug(fmt.Sprintln("Client Purged", conn.RemoteAddr(), string(b)))
 	}
 }
 
+//appendClient add a client connection to the clientPool
+func (pool *clientPool) appendClient(conn net.Conn) {
+	pool.connections = append(pool.connections, conn)
+}
+
 //removeClient remove a client connection from the clientPool
-func removeClient(conn net.Conn) {
-	newClients := make(clientPool, 0)
-	for _, client := range clients {
+func (pool *clientPool) removeClient(conn net.Conn) {
+	newConnections := make([]net.Conn, 0)
+	for _, client := range pool.connections {
 		if client != conn {
-			newClients = append(newClients, client)
+			newConnections = append(newConnections, client)
 		}
 	}
-	clients = newClients
+	pool.connections = newConnections
 	return
 }
 
 //close close every connection with clients
-func (clients clientPool) close() {
-	for _, client := range clients {
+func (pool *clientPool) close() {
+	for _, client := range pool.connections {
 		client.Close()
 	}
 }
 
 //ping send ping message to every clients every 5 seconds
-func ping() {
+func (pool *clientPool) ping() {
 	for {
 		time.Sleep(5 * time.Second)
-		for _, client := range clients {
+		fmt.Println(pool)
+		for _, client := range pool.connections {
 			n, err := client.Write([]byte("ping\n"))
 			if n == 0 || err == syscall.EPIPE {
 				logger.Debug(fmt.Sprintln("ping: client gone", client.RemoteAddr()))
-				removeClient(client)
+				pool.removeClient(client)
 				break
 			}
 		}
