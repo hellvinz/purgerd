@@ -11,11 +11,6 @@ import (
 	"time"
 )
 
-type clientPool struct {
-	connections []net.Conn
-}
-
-var clients *clientPool
 var context zmq.Context
 var logger *syslog.Writer
 
@@ -39,12 +34,9 @@ func main() {
 	setupPurgeSenderAndListen(incomingAddress)
 }
 
-//setupPurgeSenderAndListen create a clientPool and start listening to the socket where varnish cli connects
+//setupPurgeSenderAndListen start listening to the socket where varnish cli connects
 //when a client connects it is calling the handleConnection handler
 func setupPurgeSenderAndListen(incomingAddress *string) {
-	clients := &clientPool{connections: make([]net.Conn, 0)}
-	go clients.ping()
-	defer clients.close()
 	ln, err := net.Listen("tcp", *incomingAddress)
 	checkError(err)
 	for {
@@ -56,8 +48,6 @@ func setupPurgeSenderAndListen(incomingAddress *string) {
 		logger.Info(fmt.Sprintln("New client: ", conn.RemoteAddr()))
 		// flush the whole cache of the new client
 		sendPurge(conn, ".*")
-		// put it in the client pool
-		clients.appendClient(conn)
 		// connect client to the pubsub purge
 		go connectClientToPusher(conn)
 	}
@@ -68,14 +58,22 @@ func setupPurgeSenderAndListen(incomingAddress *string) {
 //when a purge pattern is received it dispatch it to a PUB socket
 func setupPurgeReceiver(outgoingAddress *string) {
 	receiver, _ := context.NewSocket(zmq.REP)
+	receiver.SetSockOptUInt64(zmq.HWM, 100)
 	defer receiver.Close()
 	receiver.Bind("tcp://" + *outgoingAddress)
 
 	pusher, _ := context.NewSocket(zmq.PUB)
 	defer pusher.Close()
 	pusher.Bind("inproc://pusher")
+	go func() {
+		for {
+			time.Sleep(5 * time.Second)
+			pusher.Send([]byte("ping"), 0)
+		}
+	}()
 	for {
 		b, _ := receiver.Recv(0)
+		logger.Info(fmt.Sprintln("i've received to purge from client:", string(b)))
 		pusher.Send(b, 0)
 		receiver.Send([]byte("ok"), 0)
 	}
@@ -87,55 +85,21 @@ func connectClientToPusher(conn net.Conn) {
 	puller, _ := context.NewSocket(zmq.SUB)
 	puller.SetSockOptString(zmq.SUBSCRIBE, "")
 	defer puller.Close()
+	defer conn.Close()
 	puller.Connect("inproc://pusher")
 	for {
 		b, _ := puller.Recv(0)
-		err := sendPurge(conn, string(b))
+		var err error
+		if string(b) == "ping" {
+			err = sendString(conn, string(b))
+		} else {
+			err = sendPurge(conn, string(b))
+		}
 		if err == syscall.EPIPE {
 			logger.Info(fmt.Sprintln("client gone", conn.RemoteAddr()))
-			clients.removeClient(conn)
 			break
-		}
-		logger.Debug(fmt.Sprintln("Client Purged", conn.RemoteAddr(), string(b)))
-	}
-}
-
-//appendClient add a client connection to the clientPool
-func (pool *clientPool) appendClient(conn net.Conn) {
-	pool.connections = append(pool.connections, conn)
-}
-
-//removeClient remove a client connection from the clientPool
-func (pool *clientPool) removeClient(conn net.Conn) {
-	newConnections := make([]net.Conn, 0)
-	for _, client := range pool.connections {
-		if client != conn {
-			newConnections = append(newConnections, client)
-		}
-	}
-	pool.connections = newConnections
-	return
-}
-
-//close close every connection with clients
-func (pool *clientPool) close() {
-	for _, client := range pool.connections {
-		client.Close()
-	}
-}
-
-//ping send ping message to every clients every 5 seconds
-func (pool *clientPool) ping() {
-	for {
-		time.Sleep(5 * time.Second)
-		fmt.Println(pool)
-		for _, client := range pool.connections {
-			n, err := client.Write([]byte("ping\n"))
-			if n == 0 || err == syscall.EPIPE {
-				logger.Debug(fmt.Sprintln("ping: client gone", client.RemoteAddr()))
-				pool.removeClient(client)
-				break
-			}
+		} else {
+			logger.Debug(fmt.Sprintln("Client got", conn.RemoteAddr(), string(b)))
 		}
 	}
 }
@@ -143,7 +107,13 @@ func (pool *clientPool) ping() {
 //sendPurge send a purge message to a client
 //it appends a ban.url to the pattern passed
 func sendPurge(conn net.Conn, pattern string) (err error) {
-	n, err := conn.Write([]byte("ban.url " + pattern + "\n"))
+	err = sendString(conn, "ban.url "+pattern)
+	return
+}
+
+//sendString is sending a raw string to a client
+func sendString(conn net.Conn, message string) (err error) {
+	n, err := conn.Write([]byte(message + "\n"))
 	if n == 0 {
 		logger.Debug(fmt.Sprintln("failed to send message", conn.RemoteAddr()))
 		err = syscall.EPIPE
