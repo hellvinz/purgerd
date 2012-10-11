@@ -83,3 +83,8 @@ then
 `
 go get github.com/hellvinz/purger
 `
+
+Logging
+=======
+
+the purger logs to syslog
