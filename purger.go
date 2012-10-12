@@ -16,9 +16,15 @@ var logger *syslog.Writer
 
 func main() {
 	// parse command line options
-	var incomingAddress = flag.String("i", "0.0.0.0:8081", "incoming zmq purge address, eg: '0.0.0.0:8081'")
-	var outgoingAddress = flag.String("o", "0.0.0.0:8080", "listening socket where purge message are sent to varnish reverse cli, eg: 0.0.0.0:8080")
+	incomingAddress := flag.String("i", "0.0.0.0:8081", "incoming zmq purge address, eg: '0.0.0.0:8081'")
+	outgoingAddress := flag.String("o", "0.0.0.0:8080", "listening socket where purge message are sent to varnish reverse cli, eg: 0.0.0.0:8080")
+	version := flag.Bool("v", false, "display version")
+	purgeOnStartUp := flag.Bool("p", false, "purge all the varnish cache on connection")
 	flag.Parse()
+  if *version {
+    printVersion()
+    os.Exit(0)
+  }
 
 	// log to syslog
 	logger, _ = syslog.New(syslog.LOG_INFO, "")
@@ -31,12 +37,12 @@ func main() {
 	go setupPurgeReceiver(outgoingAddress)
 
 	// we're ready to listen varnish cli connection
-	setupPurgeSenderAndListen(incomingAddress)
+	setupPurgeSenderAndListen(incomingAddress, *purgeOnStartUp)
 }
 
 //setupPurgeSenderAndListen start listening to the socket where varnish cli connects
 //when a client connects it is calling the handleConnection handler
-func setupPurgeSenderAndListen(incomingAddress *string) {
+func setupPurgeSenderAndListen(incomingAddress *string, purgeOnStartup bool) {
 	ln, err := net.Listen("tcp", *incomingAddress)
 	checkError(err)
 	for {
@@ -46,8 +52,10 @@ func setupPurgeSenderAndListen(incomingAddress *string) {
 			continue
 		}
 		logger.Info(fmt.Sprintln("New client: ", conn.RemoteAddr()))
-		// flush the whole cache of the new client
-		sendPurge(conn, ".*")
+    if purgeOnStartup {
+      // flush the whole cache of the new client
+      sendPurge(conn, ".*")
+    }
 		// connect client to the pubsub purge
 		go connectClientToPusher(conn)
 	}
@@ -127,4 +135,9 @@ func checkError(err error) {
 		logger.Crit(fmt.Sprintln("Fatal error", err.Error()))
 		os.Exit(1)
 	}
+}
+
+//version
+func printVersion(){
+  fmt.Println("0.0.1")
 }

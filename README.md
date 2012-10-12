@@ -10,6 +10,8 @@ Usage
 Usage of ./purger: 
   -i="0.0.0.0:8081": incoming zmq purge address, eg: '0.0.0.0:8081'                                 
   -o="0.0.0.0:8080": listening socket where purge message are sent to varnish reverse cli, eg: 0.0.0.0:8
+  -p=false: purge all the varnish cache on connection
+  -v: display version
 ```
 
 Run purger from $GOCODE/bin/purger. With no options it will listen to purge request on 0.0.0.0:8081 with a REP 0MQ socket.
