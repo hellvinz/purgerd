@@ -21,10 +21,10 @@ func main() {
 	version := flag.Bool("v", false, "display version")
 	purgeOnStartUp := flag.Bool("p", false, "purge all the varnish cache on connection")
 	flag.Parse()
-  if *version {
-    printVersion()
-    os.Exit(0)
-  }
+	if *version {
+		printVersion()
+		os.Exit(0)
+	}
 
 	// log to syslog
 	logger, _ = syslog.New(syslog.LOG_INFO, "")
@@ -52,10 +52,10 @@ func setupPurgeSenderAndListen(incomingAddress *string, purgeOnStartup bool) {
 			continue
 		}
 		logger.Info(fmt.Sprintln("New client: ", conn.RemoteAddr()))
-    if purgeOnStartup {
-      // flush the whole cache of the new client
-      sendPurge(conn, ".*")
-    }
+		if purgeOnStartup {
+			// flush the whole cache of the new client
+			sendPurge(conn, ".*")
+		}
 		// connect client to the pubsub purge
 		go connectClientToPusher(conn)
 	}
@@ -68,7 +68,8 @@ func setupPurgeReceiver(outgoingAddress *string) {
 	receiver, _ := context.NewSocket(zmq.REP)
 	receiver.SetSockOptUInt64(zmq.HWM, 100)
 	defer receiver.Close()
-	receiver.Bind("tcp://" + *outgoingAddress)
+	err := receiver.Bind("tcp://" + *outgoingAddress)
+	checkError(err)
 
 	pusher, _ := context.NewSocket(zmq.PUB)
 	defer pusher.Close()
@@ -138,6 +139,6 @@ func checkError(err error) {
 }
 
 //version
-func printVersion(){
-  fmt.Println("0.0.1")
+func printVersion() {
+	fmt.Println("0.0.1")
 }
