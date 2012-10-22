@@ -1,5 +1,5 @@
-Purger
-======
+Purgerd
+=======
 
 This tool forward a purge request received to a pool of varnish connected via the reverse cli
 
@@ -7,14 +7,14 @@ Usage
 =====
 
 ```
-Usage of ./purger: 
+Usage of ./purgerd: 
   -i="0.0.0.0:8081": incoming zmq purge address, eg: '0.0.0.0:8081'                                 
-  -o="0.0.0.0:8080": listening socket where purge message are sent to varnish reverse cli, eg: 0.0.0.0:8
+  -o="0.0.0.0:8080": listening socket where purge message are sent to varnish reverse cli, eg: 0.0.0.0:8080
   -p=false: purge all the varnish cache on connection
   -v: display version
 ```
 
-Run purger from $GOCODE/bin/purger. With no options it will listen to purge request on 0.0.0.0:8081 with a REP 0MQ socket.
+Run purgerd from $GOCODE/bin/purgerd. With no options it will listen to purge request on 0.0.0.0:8081 with a REP 0MQ socket.
 Start varnish with the -M option to make it connect to the purger. (ex: -M localhost:8081 if you're running varnish on the same box)
 
 Client example
@@ -83,10 +83,10 @@ export CGO_CFLAGS=-I/opt/local/include
 then
 
 `
-go get github.com/hellvinz/purger
+go get github.com/hellvinz/purgerd
 `
 
 Logging
 =======
 
-the purger logs to syslog
+the purgerd logs to syslog
