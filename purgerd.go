@@ -16,8 +16,8 @@ var logger *syslog.Writer
 
 func main() {
 	// parse command line options
-	incomingAddress := flag.String("i", "0.0.0.0:8081", "incoming zmq purge address, eg: '0.0.0.0:8081'")
-	outgoingAddress := flag.String("o", "0.0.0.0:8080", "listening socket where purge message are sent to varnish reverse cli, eg: 0.0.0.0:8080")
+	incomingAddress := flag.String("i", "0.0.0.0:8111", "0MQ REP socket address where purge message are sent, '0.0.0.0:8111'")
+	outgoingAddress := flag.String("o", "0.0.0.0:1118", "listening socket where purge message are sent to varnish reverse cli, 0.0.0.0:1118")
 	version := flag.Bool("v", false, "display version")
 	purgeOnStartUp := flag.Bool("p", false, "purge all the varnish cache on connection")
 	flag.Parse()
@@ -34,10 +34,10 @@ func main() {
 	defer context.Close()
 
 	// the zmq REP socket where to send purge requests
-	go setupPurgeReceiver(outgoingAddress)
+	go setupPurgeReceiver(incomingAddress)
 
 	// we're ready to listen varnish cli connection
-	setupPurgeSenderAndListen(incomingAddress, *purgeOnStartUp)
+	setupPurgeSenderAndListen(outgoingAddress, *purgeOnStartUp)
 }
 
 //setupPurgeSenderAndListen start listening to the socket where varnish cli connects
