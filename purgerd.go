@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	zmq "github.com/alecthomas/gozmq"
+	"io/ioutil"
 	"log/syslog"
 	"net"
 	"os"
@@ -42,8 +43,8 @@ func main() {
 
 //setupPurgeSenderAndListen start listening to the socket where varnish cli connects
 //when a client connects it is calling the handleConnection handler
-func setupPurgeSenderAndListen(incomingAddress *string, purgeOnStartup bool) {
-	ln, err := net.Listen("tcp", *incomingAddress)
+func setupPurgeSenderAndListen(outgoingAddress *string, purgeOnStartup bool) {
+	ln, err := net.Listen("tcp", *outgoingAddress)
 	checkError(err)
 	for {
 		conn, err := ln.Accept()
@@ -64,11 +65,8 @@ func setupPurgeSenderAndListen(incomingAddress *string, purgeOnStartup bool) {
 
 //setupPurgeReceiver set up the zmq REP socket where ban messages arrives
 //when a purge pattern is received it dispatch it to a PUB socket
-func setupPurgeReceiver(outgoingAddress *string) {
-	receiver, _ := context.NewSocket(zmq.REP)
-	receiver.SetSockOptUInt64(zmq.HWM, 100)
-	defer receiver.Close()
-	err := receiver.Bind("tcp://" + *outgoingAddress)
+func setupPurgeReceiver(incomingAddress *string) {
+	receiver, err := net.Listen("tcp", *incomingAddress)
 	checkError(err)
 
 	pusher, _ := context.NewSocket(zmq.PUB)
@@ -81,10 +79,16 @@ func setupPurgeReceiver(outgoingAddress *string) {
 		}
 	}()
 	for {
-		b, _ := receiver.Recv(0)
-		logger.Info(fmt.Sprintln("i've received to purge from client:", string(b)))
-		pusher.Send(b, 0)
-		receiver.Send([]byte("ok"), 0)
+		conn, err := receiver.Accept()
+		checkError(err)
+		go func(c net.Conn) {
+			b, err := ioutil.ReadAll(conn)
+			if err != nil {
+				conn.Close()
+			}
+			logger.Info(fmt.Sprintln("i've received to purge from client:", string(b)))
+			pusher.Send(b, 0)
+		}(conn)
 	}
 	return
 }
