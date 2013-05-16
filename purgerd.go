@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-var context zmq.Context
+var context *zmq.Context
 var logger *syslog.Writer
 
 func main() {
