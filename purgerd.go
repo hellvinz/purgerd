@@ -63,8 +63,8 @@ func setupPurgeSenderAndListen(outgoingAddress *string, purgeOnStartup bool) {
 	return
 }
 
-//setupPurgeReceiver set up the zmq REP socket where ban messages arrives
-//when a purge pattern is received it dispatch it to a PUB socket
+//setupPurgeReceiver set up the tcp socket where ban messages come
+//when a purge pattern is received it dispatches it to a PUB socket
 func setupPurgeReceiver(incomingAddress *string) {
 	receiver, err := net.Listen("tcp", *incomingAddress)
 	checkError(err)
