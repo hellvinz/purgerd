@@ -23,7 +23,7 @@ Client example
 Ruby
 ```
 require "socket"
-socket.TCPSocket.new('127.0.0.1',8111)
+socket = TCPSocket.new('127.0.0.1',8111)
 socket.write('.*')
 socket.close()
 ```
