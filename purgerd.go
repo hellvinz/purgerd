@@ -3,21 +3,23 @@ package main
 import (
 	"flag"
 	"fmt"
-	zmq "github.com/alecthomas/gozmq"
 	"io/ioutil"
 	"log/syslog"
 	"net"
 	"os"
+	"os/signal"
 	"syscall"
 	"time"
 )
 
-var context *zmq.Context
 var logger *syslog.Writer
 
 func main() {
+	// log to syslog
+	logger, _ = syslog.New(syslog.LOG_INFO, "")
+
 	// parse command line options
-	incomingAddress := flag.String("i", "0.0.0.0:8111", "0MQ REP socket address where purge message are sent, '0.0.0.0:8111'")
+	incomingAddress := flag.String("i", "0.0.0.0:8111", "socket where purge messages are sent, '0.0.0.0:8111'")
 	outgoingAddress := flag.String("o", "0.0.0.0:1118", "listening socket where purge message are sent to varnish reverse cli, 0.0.0.0:1118")
 	version := flag.Bool("v", false, "display version")
 	purgeOnStartUp := flag.Bool("p", false, "purge all the varnish cache on connection")
@@ -27,23 +29,19 @@ func main() {
 		os.Exit(0)
 	}
 
-	// log to syslog
-	logger, _ = syslog.New(syslog.LOG_INFO, "")
+	publisher := Publisher{}
 
-	// setup zmq
-	context, _ = zmq.NewContext()
-	defer context.Close()
+	go monitorSignals(&publisher)
 
-	// the zmq REP socket where to send purge requests
-	go setupPurgeReceiver(incomingAddress)
+	go setupPurgeReceiver(incomingAddress, &publisher)
 
 	// we're ready to listen varnish cli connection
-	setupPurgeSenderAndListen(outgoingAddress, *purgeOnStartUp)
+	setupPurgeSenderAndListen(outgoingAddress, *purgeOnStartUp, &publisher)
 }
 
 //setupPurgeSenderAndListen start listening to the socket where varnish cli connects
 //when a client connects it is calling the handleConnection handler
-func setupPurgeSenderAndListen(outgoingAddress *string, purgeOnStartup bool) {
+func setupPurgeSenderAndListen(outgoingAddress *string, purgeOnStartup bool, publisher *Publisher) {
 	ln, err := net.Listen("tcp", *outgoingAddress)
 	checkError(err)
 	for {
@@ -58,24 +56,21 @@ func setupPurgeSenderAndListen(outgoingAddress *string, purgeOnStartup bool) {
 			sendPurge(conn, ".*")
 		}
 		// connect client to the pubsub purge
-		go connectClientToPusher(conn)
+		go connectClientToPublisher(conn, publisher)
 	}
 	return
 }
 
 //setupPurgeReceiver set up the tcp socket where ban messages come
-//when a purge pattern is received it dispatches it to a PUB socket
-func setupPurgeReceiver(incomingAddress *string) {
+//when a purge pattern is received it dispatches it to a Pub object
+func setupPurgeReceiver(incomingAddress *string, publisher *Publisher) {
 	receiver, err := net.Listen("tcp", *incomingAddress)
 	checkError(err)
 
-	pusher, _ := context.NewSocket(zmq.PUB)
-	defer pusher.Close()
-	pusher.Bind("inproc://pusher")
 	go func() {
 		for {
 			time.Sleep(5 * time.Second)
-			pusher.Send([]byte("ping"), 0)
+			publisher.Pub([]byte("ping"))
 		}
 	}()
 	for {
@@ -87,21 +82,21 @@ func setupPurgeReceiver(incomingAddress *string) {
 				conn.Close()
 			}
 			logger.Info(fmt.Sprintln("i've received to purge from client:", string(b)))
-			pusher.Send(b, 0)
+			publisher.Pub(b)
 		}(conn)
 	}
 	return
 }
 
 //connectClientToPusher is used to forward message received from the internal PUB socket to the client
-func connectClientToPusher(conn net.Conn) {
-	puller, _ := context.NewSocket(zmq.SUB)
-	puller.SetSockOptString(zmq.SUBSCRIBE, "")
-	defer puller.Close()
+func connectClientToPublisher(conn net.Conn, publisher *Publisher) {
 	defer conn.Close()
-	puller.Connect("inproc://pusher")
+	subscriber := new(Subscriber)
+	subscriber.Channel = make(chan []byte, 3)
+	publisher.Sub(subscriber.Channel)
+	defer publisher.Unsub(subscriber.Channel)
 	for {
-		b, _ := puller.Recv(0)
+		b := <-subscriber.Channel
 		var err error
 		if string(b) == "ping" {
 			err = sendString(conn, string(b))
@@ -142,7 +137,17 @@ func checkError(err error) {
 	}
 }
 
+//monitorSignals trap SIGUSR1 to print stats
+func monitorSignals(p *Publisher) {
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, syscall.SIGUSR1)
+	for {
+		<-c
+		logger.Info(fmt.Sprintln("Purges sent: ", p.Publishes))
+	}
+}
+
 //version
 func printVersion() {
-	fmt.Println("0.0.1")
+	fmt.Println("0.0.2")
 }

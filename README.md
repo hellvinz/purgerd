@@ -31,24 +31,12 @@ socket.close()
 Requirements
 ============
 
-0MQ: http://www.zeromq.org/
 Go: http://golang.org/
 
 Install
 =======
 
-if you install 0MQ in a non-standard directory, for example /opt/local, export first:
-
-```
-export CGO_LDFLAGS=-L/opt/local/lib
-export CGO_CFLAGS=-I/opt/local/include
-```
-
-then
-
-`
 go get github.com/hellvinz/purgerd
-`
 
 Logging
 =======
