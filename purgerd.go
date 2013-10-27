@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -23,6 +25,7 @@ func main() {
 	outgoingAddress := flag.String("o", "0.0.0.0:1118", "listening socket where purge message are sent to varnish reverse cli, 0.0.0.0:1118")
 	version := flag.Bool("v", false, "display version")
 	purgeOnStartUp := flag.Bool("p", false, "purge all the varnish cache on connection")
+	secret := flag.String("s", "", "varnish secret")
 	flag.Parse()
 	if *version {
 		printVersion()
@@ -36,12 +39,12 @@ func main() {
 	go setupPurgeReceiver(incomingAddress, &publisher)
 
 	// we're ready to listen varnish cli connection
-	setupPurgeSenderAndListen(outgoingAddress, *purgeOnStartUp, &publisher)
+	setupPurgeSenderAndListen(outgoingAddress, *purgeOnStartUp, &publisher, secret)
 }
 
 //setupPurgeSenderAndListen start listening to the socket where varnish cli connects
 //when a client connects it is calling the handleConnection handler
-func setupPurgeSenderAndListen(outgoingAddress *string, purgeOnStartup bool, publisher *Publisher) {
+func setupPurgeSenderAndListen(outgoingAddress *string, purgeOnStartup bool, publisher *Publisher, secret *string) {
 	ln, err := net.Listen("tcp", *outgoingAddress)
 	checkError(err)
 	for {
@@ -51,12 +54,9 @@ func setupPurgeSenderAndListen(outgoingAddress *string, purgeOnStartup bool, pub
 			continue
 		}
 		logger.Info(fmt.Sprintln("New client: ", conn.RemoteAddr()))
-		if purgeOnStartup {
-			// flush the whole cache of the new client
-			sendPurge(conn, ".*")
-		}
+
 		// connect client to the pubsub purge
-		go connectClientToPublisher(conn, publisher)
+		go connectClientToPublisher(conn, publisher, purgeOnStartup, secret)
 	}
 	return
 }
@@ -89,8 +89,30 @@ func setupPurgeReceiver(incomingAddress *string, publisher *Publisher) {
 }
 
 //connectClientToPusher is used to forward message received from the internal PUB socket to the client
-func connectClientToPublisher(conn net.Conn, publisher *Publisher) {
+func connectClientToPublisher(conn net.Conn, publisher *Publisher, purgeOnStartup bool, secret *string) {
 	defer conn.Close()
+
+	// check if client need auth
+	message := make([]byte, 512)
+	conn.Read(message)
+	cli := Cliparser(message)
+	if cli.status == 107 {
+		if *secret == "" {
+			logger.Crit("Client varnish asked for a secret, provide one with -s")
+			return
+		}
+		challenge := cli.body[:32]
+		response := fmt.Sprintf("%s\n%s\n%s\n", challenge, *secret, challenge)
+		hasher := sha256.New()
+		hasher.Write([]byte(response))
+		conn.Write([]byte(fmt.Sprintf("auth %s\n", hex.EncodeToString(hasher.Sum(nil)))))
+	}
+
+	if purgeOnStartup {
+		// flush the whole cache of the new client
+		sendPurge(conn, ".*")
+	}
+
 	subscriber := new(Subscriber)
 	subscriber.Channel = make(chan []byte, 3)
 	publisher.Sub(subscriber.Channel)
