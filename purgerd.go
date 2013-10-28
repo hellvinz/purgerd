@@ -32,14 +32,14 @@ func main() {
 		os.Exit(0)
 	}
 
-	publisher := Publisher{}
+	publisher := NewPublisher()
 
-	go monitorSignals(&publisher)
+	go monitorSignals(publisher)
 
-	go setupPurgeReceiver(incomingAddress, &publisher)
+	go setupPurgeReceiver(incomingAddress, publisher)
 
 	// we're ready to listen varnish cli connection
-	setupPurgeSenderAndListen(outgoingAddress, *purgeOnStartUp, &publisher, secret)
+	setupPurgeSenderAndListen(outgoingAddress, *purgeOnStartUp, publisher, secret)
 }
 
 //setupPurgeSenderAndListen start listening to the socket where varnish cli connects

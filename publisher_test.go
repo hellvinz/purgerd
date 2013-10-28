@@ -6,7 +6,7 @@ import (
 )
 
 func TestPublisherSub(t *testing.T){
-    publisher := new(Publisher)
+    publisher := NewPublisher()
     receiver := make(chan []byte)
     publisher.Sub(receiver)
     if publisher.subscribers[0] != receiver {
@@ -18,7 +18,7 @@ func TestPublisherPub(t *testing.T){
     var message []byte
     timeout := make(chan bool, 1)
     wait := make(chan bool, 1)
-    publisher := new(Publisher)
+    publisher := NewPublisher()
     receiver := make(chan []byte)
     publisher.Sub(receiver)
     go func(){
@@ -41,7 +41,7 @@ func TestPublisherPub(t *testing.T){
 }
 
 func TestPublisherUnsub(t *testing.T){
-    publisher := new(Publisher)
+    publisher := NewPublisher()
     receiver := make(chan []byte)
     publisher.Sub(receiver)
     time.Sleep(100 * time.Nanosecond)

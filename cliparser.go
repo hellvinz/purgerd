@@ -169,8 +169,8 @@ cli.body = make([]byte,bodylength)
 		case 3:
 // line 21 "cliparser.rl"
 
-cli.body[bodypos]=data[p]; bodypos++; if bodypos == bodylength {p++; goto _out
-}
+if bodypos == bodylength {p++; goto _out
+}; cli.body[bodypos]=data[p]; bodypos++
 // line 175 "cliparser.go"
 		}
 	}

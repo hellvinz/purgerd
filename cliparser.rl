@@ -18,7 +18,7 @@ func Cliparser(data []byte) (cli *Cli){
         action status {cli.status = cli.status*10+(int(fc)-'0')}
         action bodylength {bodylength = bodylength*10+(int(fc)-'0')}
         action makebody {cli.body = make([]byte,bodylength)}
-        action body {cli.body[bodypos]=fc; bodypos++; if bodypos == bodylength {fbreak;}}
+        action body {if bodypos == bodylength {fbreak;}; cli.body[bodypos]=fc; bodypos++}
         main := digit{,3}@status " " digit+ @bodylength %makebody space* "\n" (any*)@body;
         write init;
         write exec;

@@ -2,6 +2,21 @@ package main
 
 import "testing"
 
+func TestCliparserEmpty(t *testing.T){
+    in := []byte(`200 0`)
+    out := Cli{200, []byte("")}
+
+    result := Cliparser(in)
+    if result.status != out.status {
+        t.Errorf("%i\n\nreturned want:\n %i", result.status, out.status)
+    }
+
+    if string(result.body) != string(out.body) {
+        t.Errorf("%s returned want %s", result.body, out.body)
+    }
+
+}
+
 func TestCliparserShort(t *testing.T){
     in := []byte(`200 13
 VCL compiled.`)
