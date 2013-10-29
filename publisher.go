@@ -7,6 +7,7 @@ type Publisher struct {
 	subscribers            []chan []byte
 	toberemovedsubscribers chan chan []byte
 	tobeaddedsubscribers   chan chan []byte
+	messages               chan []byte
 	Publishes              int64
 	m                      sync.Mutex
 }
@@ -15,8 +16,10 @@ func NewPublisher() *Publisher {
 	publisher := Publisher{}
 	publisher.toberemovedsubscribers = make(chan chan []byte)
 	publisher.tobeaddedsubscribers = make(chan chan []byte)
+	publisher.messages = make(chan []byte)
 	publisher.Publishes = 0
-	go publisher.monitorsubscription()
+	go publisher.monitorsubscriptions()
+	go publisher.monitormessages()
 	return &publisher
 }
 
@@ -29,15 +32,10 @@ func (p *Publisher) Unsub(c chan []byte) {
 }
 
 func (p *Publisher) Pub(message []byte) {
-	atomic.AddInt64(&p.Publishes, 1)
-	p.m.Lock()
-	for _, c := range p.subscribers {
-		c <- message
-	}
-	p.m.Unlock()
+	p.messages <- message
 }
 
-func (p *Publisher) monitorsubscription() {
+func (p *Publisher) monitorsubscriptions() {
 	var c chan []byte
 
 	for {
@@ -58,5 +56,17 @@ func (p *Publisher) monitorsubscription() {
 			p.subscribers = append(p.subscribers, c)
 			p.m.Unlock()
 		}
+	}
+}
+
+func (p *Publisher) monitormessages() {
+	for {
+		message := <-p.messages
+		atomic.AddInt64(&p.Publishes, 1)
+		p.m.Lock()
+		for _, c := range p.subscribers {
+			c <- message
+		}
+		p.m.Unlock()
 	}
 }

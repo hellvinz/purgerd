@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"flag"
@@ -77,12 +78,15 @@ func setupPurgeReceiver(incomingAddress *string, publisher *Publisher) {
 		conn, err := receiver.Accept()
 		checkError(err)
 		go func(c net.Conn) {
+			defer conn.Close()
 			b, err := ioutil.ReadAll(conn)
 			if err != nil {
-				conn.Close()
+				logger.Info(fmt.Sprintln("Client connection error:", err))
+			} else {
+				logger.Info(fmt.Sprintln("Purge request:", string(b), "from", conn.RemoteAddr()))
+				publisher.Pub(bytes.TrimSpace(b))
+				conn.Write([]byte("OK\n"))
 			}
-			logger.Info(fmt.Sprintln("i've received to purge from client:", string(b)))
-			publisher.Pub(b)
 		}(conn)
 	}
 	return
@@ -126,10 +130,8 @@ func connectClientToPublisher(conn net.Conn, publisher *Publisher, purgeOnStartu
 			err = sendPurge(conn, string(b))
 		}
 		if err == syscall.EPIPE {
-			logger.Info(fmt.Sprintln("client gone", conn.RemoteAddr()))
+			logger.Info(fmt.Sprintln("Client gone", conn.RemoteAddr()))
 			break
-		} else {
-			logger.Debug(fmt.Sprintln("Client got", conn.RemoteAddr(), string(b)))
 		}
 	}
 }
@@ -145,8 +147,10 @@ func sendPurge(conn net.Conn, pattern string) (err error) {
 func sendString(conn net.Conn, message string) (err error) {
 	n, err := conn.Write([]byte(message + "\n"))
 	if n == 0 {
-		logger.Debug(fmt.Sprintln("failed to send message", conn.RemoteAddr()))
+		logger.Debug(fmt.Sprintln("Failed to send",string(message), "to", conn.RemoteAddr()))
 		err = syscall.EPIPE
+	} else {
+		logger.Debug(fmt.Sprintln("Client", conn.RemoteAddr(), "received:", string(message)))
 	}
 	return
 }
