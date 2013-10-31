@@ -16,8 +16,10 @@ import (
 )
 
 var logger *syslog.Writer
+var hostCache = map[net.Conn]string{}
 
 func main() {
+
 	// log to syslog
 	logger, _ = syslog.New(syslog.LOG_INFO, "")
 
@@ -54,7 +56,7 @@ func setupPurgeSenderAndListen(outgoingAddress *string, purgeOnStartup bool, pub
 			// handle error
 			continue
 		}
-		logger.Info(fmt.Sprintln("New client: ", conn.RemoteAddr()))
+		logger.Info(fmt.Sprintln("New client:", reverseName(conn)))
 
 		// connect client to the pubsub purge
 		go connectClientToPublisher(conn, publisher, purgeOnStartup, secret)
@@ -83,7 +85,7 @@ func setupPurgeReceiver(incomingAddress *string, publisher *Publisher) {
 			if err != nil {
 				logger.Info(fmt.Sprintln("Client connection error:", err))
 			} else {
-				logger.Info(fmt.Sprintln("Purge request:", string(b), "from", conn.RemoteAddr()))
+				logger.Info(fmt.Sprintln("Purge request:", string(b), "from", reverseName(conn)))
 				publisher.Pub(bytes.TrimSpace(b))
 				conn.Write([]byte("OK\n"))
 			}
@@ -130,7 +132,7 @@ func connectClientToPublisher(conn net.Conn, publisher *Publisher, purgeOnStartu
 			err = sendPurge(conn, string(b))
 		}
 		if err == syscall.EPIPE {
-			logger.Info(fmt.Sprintln("Client gone", conn.RemoteAddr()))
+			logger.Info(fmt.Sprintln("Client gone", reverseName(conn)))
 			break
 		}
 	}
@@ -147,10 +149,10 @@ func sendPurge(conn net.Conn, pattern string) (err error) {
 func sendString(conn net.Conn, message string) (err error) {
 	n, err := conn.Write([]byte(message + "\n"))
 	if n == 0 {
-		logger.Debug(fmt.Sprintln("Failed to send",string(message), "to", conn.RemoteAddr()))
+		logger.Debug(fmt.Sprintln("Failed to send", string(message), "to", reverseName(conn)))
 		err = syscall.EPIPE
 	} else {
-		logger.Debug(fmt.Sprintln("Client", conn.RemoteAddr(), "received:", string(message)))
+		logger.Debug(fmt.Sprintln("Client", reverseName(conn), "received:", string(message)))
 	}
 	return
 }
@@ -176,4 +178,20 @@ func monitorSignals(p *Publisher) {
 //version
 func printVersion() {
 	fmt.Println("0.0.2")
+}
+
+//get reverse name
+func reverseName(conn net.Conn) (name string) {
+	name = hostCache[conn]
+	if name == "" {
+		ip, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
+		names, err := net.LookupAddr(ip)
+		if err == nil {
+			name = names[0]
+		} else {
+			name = ip
+		}
+		hostCache[conn] = name
+	}
+	return name
 }
