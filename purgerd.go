@@ -85,7 +85,7 @@ func setupPurgeReceiver(incomingAddress *string, publisher *Publisher) {
 			if err != nil {
 				logger.Info(fmt.Sprintln("Client connection error:", err))
 			} else {
-				logger.Info(fmt.Sprintln("<-\t", reverseName(conn), string(b)))
+				logger.Info(fmt.Sprintln("<-", reverseName(conn), string(b)))
 				publisher.Pub(bytes.TrimSpace(b))
 				conn.Write([]byte("OK\n"))
 			}
@@ -152,7 +152,7 @@ func sendString(conn net.Conn, message string) (err error) {
 		logger.Debug(fmt.Sprintln("Failed to send", string(message), "to", reverseName(conn)))
 		err = syscall.EPIPE
 	} else {
-		logger.Debug(fmt.Sprintln("->\t", reverseName(conn), "\t", string(message)))
+		logger.Debug(fmt.Sprintln("->", reverseName(conn), string(message)))
 	}
 	return
 }
