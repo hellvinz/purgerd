@@ -5,9 +5,29 @@ import (
     "time"
 )
 
+
+type DummySubscriber struct {
+    receivedMessages chan []byte
+}
+
+func NewDummySubscriber(q chan []byte) *DummySubscriber{
+    d := DummySubscriber{}
+    d.receivedMessages = q
+    return &d
+}
+
+func (d *DummySubscriber) Receive(message []byte){
+    d.receivedMessages <- message
+}
+
+func (d *DummySubscriber) String() string{
+    return "no"
+}
+
+
 func TestPublisherSub(t *testing.T){
     publisher := NewPublisher()
-    receiver := make(chan []byte)
+    receiver := &DummySubscriber{}
     publisher.Sub(receiver)
     if publisher.subscribers[0] != receiver {
         t.Errorf("Publisher.Sub should add argument to the internal subscribers slice")
@@ -19,10 +39,11 @@ func TestPublisherPub(t *testing.T){
     timeout := make(chan bool, 1)
     wait := make(chan bool, 1)
     publisher := NewPublisher()
-    receiver := make(chan []byte)
+    outqueue := make(chan []byte,1)
+    receiver := NewDummySubscriber(outqueue)
     publisher.Sub(receiver)
     go func(){
-        message = <-receiver
+        message = <-outqueue
         wait<-true
     }()
     go func() {
@@ -42,7 +63,7 @@ func TestPublisherPub(t *testing.T){
 
 func TestPublisherUnsub(t *testing.T){
     publisher := NewPublisher()
-    receiver := make(chan []byte)
+    receiver := &DummySubscriber{}
     publisher.Sub(receiver)
     time.Sleep(100 * time.Nanosecond)
     publisher.Unsub(receiver)

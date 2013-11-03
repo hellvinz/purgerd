@@ -16,7 +16,6 @@ import (
 )
 
 var logger *syslog.Writer
-var hostCache = map[net.Conn]string{}
 
 func main() {
 
@@ -46,10 +45,10 @@ func main() {
 }
 
 //setupPurgeSenderAndListen start listening to the socket where varnish cli connects
-//when a client connects it is calling the handleConnection handler
+//when a client connects it calls handleClient
 func setupPurgeSenderAndListen(outgoingAddress *string, purgeOnStartup bool, publisher *Publisher, secret *string) {
 	ln, err := net.Listen("tcp", *outgoingAddress)
-	checkError(err)
+	checkError(err,logger)
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
@@ -59,7 +58,7 @@ func setupPurgeSenderAndListen(outgoingAddress *string, purgeOnStartup bool, pub
 		logger.Info(fmt.Sprintln("New client:", reverseName(conn)))
 
 		// connect client to the pubsub purge
-		go connectClientToPublisher(conn, publisher, purgeOnStartup, secret)
+		go handleClient(conn, publisher, purgeOnStartup, secret)
 	}
 	return
 }
@@ -68,7 +67,7 @@ func setupPurgeSenderAndListen(outgoingAddress *string, purgeOnStartup bool, pub
 //when a purge pattern is received it dispatches it to a Pub object
 func setupPurgeReceiver(incomingAddress *string, publisher *Publisher) {
 	receiver, err := net.Listen("tcp", *incomingAddress)
-	checkError(err)
+	checkError(err,logger)
 
 	go func() {
 		for {
@@ -78,7 +77,7 @@ func setupPurgeReceiver(incomingAddress *string, publisher *Publisher) {
 	}()
 	for {
 		conn, err := receiver.Accept()
-		checkError(err)
+		checkError(err,logger)
 		go func(c net.Conn) {
 			defer conn.Close()
 			b, err := ioutil.ReadAll(conn)
@@ -94,9 +93,9 @@ func setupPurgeReceiver(incomingAddress *string, publisher *Publisher) {
 	return
 }
 
-//connectClientToPusher is used to forward message received from the internal PUB socket to the client
-func connectClientToPublisher(conn net.Conn, publisher *Publisher, purgeOnStartup bool, secret *string) {
-	defer conn.Close()
+//handleClient is used to forward message received to the client
+func handleClient(conn net.Conn, publisher *Publisher, purgeOnStartup bool, secret *string) {
+    defer conn.Close()
 
 	// check if client need auth
 	message := make([]byte, 512)
@@ -116,53 +115,16 @@ func connectClientToPublisher(conn net.Conn, publisher *Publisher, purgeOnStartu
 
 	if purgeOnStartup {
 		// flush the whole cache of the new client
-		sendPurge(conn, ".*")
+		conn.Write([]byte("ban.url .*\n"))
 	}
 
-	subscriber := new(Subscriber)
-	subscriber.Channel = make(chan []byte, 3)
-	publisher.Sub(subscriber.Channel)
-	defer publisher.Unsub(subscriber.Channel)
-	for {
-		b := <-subscriber.Channel
-		var err error
-		if string(b) == "ping" {
-			err = sendString(conn, string(b))
-		} else {
-			err = sendPurge(conn, string(b))
-		}
-		if err == syscall.EPIPE {
-			logger.Info(fmt.Sprintln("Client gone", reverseName(conn)))
-			break
-		}
-	}
-}
-
-//sendPurge send a purge message to a client
-//it appends a ban.url to the pattern passed
-func sendPurge(conn net.Conn, pattern string) (err error) {
-	err = sendString(conn, "ban.url "+pattern)
-	return
-}
-
-//sendString is sending a raw string to a client
-func sendString(conn net.Conn, message string) (err error) {
-	n, err := conn.Write([]byte(message + "\n"))
-	if n == 0 {
-		logger.Debug(fmt.Sprintln("Failed to send", string(message), "to", reverseName(conn)))
-		err = syscall.EPIPE
-	} else {
-		logger.Debug(fmt.Sprintln("->", reverseName(conn), string(message)))
-	}
-	return
-}
-
-//checkError basic error handling
-func checkError(err error) {
-	if err != nil {
-		logger.Crit(fmt.Sprintln("Fatal error", err.Error()))
-		os.Exit(1)
-	}
+	// wait for purges
+	wait := make(chan bool, 1)
+	client := NewClient(&conn, wait)
+	publisher.Sub(client)
+	<-wait
+    publisher.Unsub(client)
+    logger.Info(fmt.Sprintln(reverseName(conn),"gone"))
 }
 
 //monitorSignals trap SIGUSR1 to print stats
@@ -171,27 +133,16 @@ func monitorSignals(p *Publisher) {
 	signal.Notify(c, syscall.SIGUSR1)
 	for {
 		<-c
-		logger.Info(fmt.Sprintln("Purges sent: ", p.Publishes))
+        clients := make([]string,0)
+        callback := func(client Subscriber){
+            clients = append(clients,client.String())
+        }
+        p.dowithsubscribers(callback)
+		logger.Info(fmt.Sprintln("Purges sent:", p.Publishes,". Connected Clients",clients))
 	}
 }
 
 //version
 func printVersion() {
 	fmt.Println("0.0.2")
-}
-
-//get reverse name
-func reverseName(conn net.Conn) (name string) {
-	name = hostCache[conn]
-	if name == "" {
-		ip, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
-		names, err := net.LookupAddr(ip)
-		if err == nil {
-			name = names[0]
-		} else {
-			name = ip
-		}
-		hostCache[conn] = name
-	}
-	return name
 }

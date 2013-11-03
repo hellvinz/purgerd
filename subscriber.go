@@ -1,5 +1,6 @@
 package main
 
-type Subscriber struct {
-	Channel chan []byte
+type Subscriber interface {
+    Receive([]byte)
+    String() string
 }
