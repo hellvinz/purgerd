@@ -1,6 +1,6 @@
 
 // line 1 "cliparser.rl"
-package main
+package client
 
 
 // line 7 "cliparser.go"
@@ -61,8 +61,8 @@ const cliparser_en_main int = 1
 
 
 type Cli struct {
-    status int
-    body []byte
+    Status int
+    Body []byte
 }
 
 func Cliparser(data []byte) (cli *Cli){
@@ -157,7 +157,7 @@ _match:
 		case 0:
 // line 18 "cliparser.rl"
 
-cli.status = cli.status*10+(int(data[p])-'0')
+cli.Status = cli.Status*10+(int(data[p])-'0')
 		case 1:
 // line 19 "cliparser.rl"
 
@@ -165,12 +165,12 @@ bodylength = bodylength*10+(int(data[p])-'0')
 		case 2:
 // line 20 "cliparser.rl"
 
-cli.body = make([]byte,bodylength)
+cli.Body = make([]byte,bodylength)
 		case 3:
 // line 21 "cliparser.rl"
 
 if bodypos == bodylength {p++; goto _out
-}; cli.body[bodypos]=data[p]; bodypos++
+}; cli.Body[bodypos]=data[p]; bodypos++
 // line 175 "cliparser.go"
 		}
 	}

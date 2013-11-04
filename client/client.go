@@ -1,6 +1,11 @@
-package main
+package client
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"github.com/hellvinz/purgerd/utils"
 	"net"
 	"syscall"
 )
@@ -28,20 +33,20 @@ func (c *Client) Receive(message []byte) {
 func (c *Client) monitorMessages() {
 	defer close(c.messagesChannel)
 	for {
-        message := <-c.messagesChannel
-        err := c.sendMessage(message)
-        if err == syscall.EPIPE {
-            break
-        }
-    }
-    c.exit()
+		message := <-c.messagesChannel
+		err := c.sendMessage(message)
+		if err == syscall.EPIPE {
+			break
+		}
+	}
+	c.exit()
 }
 
 func (c *Client) sendMessage(message []byte) (err error) {
 	if string(message) == "ping" {
 		err = c.sendString(message)
 	} else {
-		err = c.sendPurge(message)
+		err = c.SendPurge(message)
 	}
 	return
 }
@@ -52,7 +57,7 @@ func (c *Client) exit() {
 
 //sendPurge send a purge message to a client
 //it appends a ban.url to the pattern passed
-func (c *Client) sendPurge(pattern []byte) (err error) {
+func (c *Client) SendPurge(pattern []byte) (err error) {
 	err = c.sendString(append([]byte("ban.url "), pattern...))
 	return
 }
@@ -66,6 +71,25 @@ func (c *Client) sendString(message []byte) (err error) {
 	return
 }
 
+func (c *Client) AuthenticateIfNeeded(secret *string) (err error) {
+	// check if client need auth
+	message := make([]byte, 512)
+	(*c.conn).Read(message)
+	cli := Cliparser(message)
+	if cli.Status == 107 {
+		if *secret == "" {
+			err = errors.New("Client varnish asked for a secret, provide one with -s")
+			return
+		}
+		challenge := cli.Body[:32]
+		response := fmt.Sprintf("%s\n%s\n%s\n", challenge, *secret, challenge)
+		hasher := sha256.New()
+		hasher.Write([]byte(response))
+		_, err = (*c.conn).Write([]byte(fmt.Sprintf("auth %s\n", hex.EncodeToString(hasher.Sum(nil)))))
+	}
+	return
+}
+
 func (c *Client) String() string {
-    return reverseName(*c.conn)
+	return utils.ReverseName(*c.conn)
 }

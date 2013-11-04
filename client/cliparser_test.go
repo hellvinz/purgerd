@@ -1,4 +1,4 @@
-package main
+package client
 
 import "testing"
 
@@ -7,12 +7,12 @@ func TestCliparserEmpty(t *testing.T){
     out := Cli{200, []byte("")}
 
     result := Cliparser(in)
-    if result.status != out.status {
-        t.Errorf("%i\n\nreturned want:\n %i", result.status, out.status)
+    if result.Status != out.Status {
+        t.Errorf("%i\n\nreturned want:\n %i", result.Status, out.Status)
     }
 
-    if string(result.body) != string(out.body) {
-        t.Errorf("%s returned want %s", result.body, out.body)
+    if string(result.Body) != string(out.Body) {
+        t.Errorf("%s returned want %s", result.Body, out.Body)
     }
 
 }
@@ -23,12 +23,12 @@ VCL compiled.`)
     out := Cli{200, []byte(`VCL compiled.`)}
 
     result := Cliparser(in)
-    if result.status != out.status {
-        t.Errorf("%i\n\nreturned want:\n %i", result.status, out.status)
+    if result.Status != out.Status {
+        t.Errorf("%i\n\nreturned want:\n %i", result.Status, out.Status)
     }
 
-    if string(result.body) != string(out.body) {
-        t.Errorf("%s returned want %s", result.body, out.body)
+    if string(result.Body) != string(out.Body) {
+        t.Errorf("%s returned want %s", result.Body, out.Body)
     }
 
 }
@@ -56,12 +56,12 @@ Type 'start' to launch worker process.
 `)}
 
     result := Cliparser(in)
-    if result.status != out.status {
-        t.Errorf("%i\n\nreturned want:\n %i", result.status, out.status)
+    if result.Status != out.Status {
+        t.Errorf("%i\n\nreturned want:\n %i", result.Status, out.Status)
     }
 
-    if string(result.body) != string(out.body) {
-        t.Errorf("%s returned want %s", result.body, out.body)
+    if string(result.Body) != string(out.Body) {
+        t.Errorf("%s returned want %s", result.Body, out.Body)
     }
 
 }

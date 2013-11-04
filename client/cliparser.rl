@@ -1,4 +1,4 @@
-package main
+package client
 
 %%{
     machine cliparser;
@@ -6,8 +6,8 @@ package main
 }%%
 
 type Cli struct {
-    status int
-    body []byte
+    Status int
+    Body []byte
 }
 
 func Cliparser(data []byte) (cli *Cli){
@@ -15,10 +15,10 @@ func Cliparser(data []byte) (cli *Cli){
     cli = new(Cli)
     bodylength, bodypos := 0, 0
     %%{
-        action status {cli.status = cli.status*10+(int(fc)-'0')}
+        action status {cli.Status = cli.Status*10+(int(fc)-'0')}
         action bodylength {bodylength = bodylength*10+(int(fc)-'0')}
-        action makebody {cli.body = make([]byte,bodylength)}
-        action body {if bodypos == bodylength {fbreak;}; cli.body[bodypos]=fc; bodypos++}
+        action makebody {cli.Body = make([]byte,bodylength)}
+        action body {if bodypos == bodylength {fbreak;}; cli.Body[bodypos]=fc; bodypos++}
         main := digit{,3}@status " " digit+ @bodylength %makebody space* "\n" (any*)@body;
         write init;
         write exec;

@@ -2,10 +2,10 @@ package main
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
 	"flag"
 	"fmt"
+	"github.com/hellvinz/purgerd/client"
+	"github.com/hellvinz/purgerd/utils"
 	"io/ioutil"
 	"log/syslog"
 	"net"
@@ -17,11 +17,12 @@ import (
 
 var logger *syslog.Writer
 
-func main() {
-
+func init() {
 	// log to syslog
 	logger, _ = syslog.New(syslog.LOG_INFO, "")
+}
 
+func main() {
 	// parse command line options
 	incomingAddress := flag.String("i", "0.0.0.0:8111", "socket where purge messages are sent, '0.0.0.0:8111'")
 	outgoingAddress := flag.String("o", "0.0.0.0:1118", "listening socket where purge message are sent to varnish reverse cli, 0.0.0.0:1118")
@@ -48,14 +49,14 @@ func main() {
 //when a client connects it calls handleClient
 func setupPurgeSenderAndListen(outgoingAddress *string, purgeOnStartup bool, publisher *Publisher, secret *string) {
 	ln, err := net.Listen("tcp", *outgoingAddress)
-	checkError(err,logger)
+	utils.CheckError(err, logger)
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
 			// handle error
 			continue
 		}
-		logger.Info(fmt.Sprintln("New client:", reverseName(conn)))
+		logger.Info(fmt.Sprintln("New client:", utils.ReverseName(conn)))
 
 		// connect client to the pubsub purge
 		go handleClient(conn, publisher, purgeOnStartup, secret)
@@ -67,7 +68,7 @@ func setupPurgeSenderAndListen(outgoingAddress *string, purgeOnStartup bool, pub
 //when a purge pattern is received it dispatches it to a Pub object
 func setupPurgeReceiver(incomingAddress *string, publisher *Publisher) {
 	receiver, err := net.Listen("tcp", *incomingAddress)
-	checkError(err,logger)
+	utils.CheckError(err, logger)
 
 	go func() {
 		for {
@@ -77,14 +78,14 @@ func setupPurgeReceiver(incomingAddress *string, publisher *Publisher) {
 	}()
 	for {
 		conn, err := receiver.Accept()
-		checkError(err,logger)
+		utils.CheckError(err, logger)
 		go func(c net.Conn) {
 			defer conn.Close()
 			b, err := ioutil.ReadAll(conn)
 			if err != nil {
 				logger.Info(fmt.Sprintln("Client connection error:", err))
 			} else {
-				logger.Info(fmt.Sprintln("<-", reverseName(conn), string(b)))
+				logger.Info(fmt.Sprintln("<-", utils.ReverseName(conn), string(b)))
 				publisher.Pub(bytes.TrimSpace(b))
 				conn.Write([]byte("OK\n"))
 			}
@@ -95,36 +96,29 @@ func setupPurgeReceiver(incomingAddress *string, publisher *Publisher) {
 
 //handleClient is used to forward message received to the client
 func handleClient(conn net.Conn, publisher *Publisher, purgeOnStartup bool, secret *string) {
-    defer conn.Close()
+	defer conn.Close()
 
-	// check if client need auth
-	message := make([]byte, 512)
-	conn.Read(message)
-	cli := Cliparser(message)
-	if cli.status == 107 {
-		if *secret == "" {
-			logger.Crit("Client varnish asked for a secret, provide one with -s")
-			return
-		}
-		challenge := cli.body[:32]
-		response := fmt.Sprintf("%s\n%s\n%s\n", challenge, *secret, challenge)
-		hasher := sha256.New()
-		hasher.Write([]byte(response))
-		conn.Write([]byte(fmt.Sprintf("auth %s\n", hex.EncodeToString(hasher.Sum(nil)))))
+	wait := make(chan bool, 1)
+	client := client.NewClient(&conn, wait)
+
+	err := client.AuthenticateIfNeeded(secret)
+	if err != nil {
+		logger.Crit(fmt.Sprintln("Varnish authentication failed:", err))
+		return
 	}
 
 	if purgeOnStartup {
 		// flush the whole cache of the new client
-		conn.Write([]byte("ban.url .*\n"))
+		client.SendPurge([]byte(".*"))
 	}
 
 	// wait for purges
-	wait := make(chan bool, 1)
-	client := NewClient(&conn, wait)
 	publisher.Sub(client)
 	<-wait
-    publisher.Unsub(client)
-    logger.Info(fmt.Sprintln(reverseName(conn),"gone"))
+
+	// client has quit, clean up
+	publisher.Unsub(client)
+	logger.Info(fmt.Sprintln(utils.ReverseName(conn), "gone"))
 }
 
 //monitorSignals trap SIGUSR1 to print stats
@@ -133,12 +127,12 @@ func monitorSignals(p *Publisher) {
 	signal.Notify(c, syscall.SIGUSR1)
 	for {
 		<-c
-        clients := make([]string,0)
-        callback := func(client Subscriber){
-            clients = append(clients,client.String())
-        }
-        p.dowithsubscribers(callback)
-		logger.Info(fmt.Sprintln("Purges sent:", p.Publishes,". Connected Clients",clients))
+		clients := make([]string, 0)
+		callback := func(client Subscriber) {
+			clients = append(clients, client.String())
+		}
+		p.dowithsubscribers(callback)
+		logger.Info(fmt.Sprintln("Purges sent:", p.Publishes, ". Connected Clients", clients))
 	}
 }
 
