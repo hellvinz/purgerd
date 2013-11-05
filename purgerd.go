@@ -85,8 +85,9 @@ func setupPurgeReceiver(incomingAddress *string, publisher *Publisher) {
 			if err != nil {
 				logger.Info(fmt.Sprintln("Client connection error:", err))
 			} else {
-				logger.Info(fmt.Sprintln("<-", utils.ReverseName(conn), string(b)))
-				publisher.Pub(bytes.TrimSpace(b))
+				clean_purge := bytes.TrimSpace(b)
+				logger.Info(fmt.Sprintln("<-", utils.ReverseName(conn), string(clean_purge)))
+				publisher.Pub(clean_purge)
 				conn.Write([]byte("OK\n"))
 			}
 		}(conn)
