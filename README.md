@@ -7,15 +7,17 @@ Usage
 =====
 
 ```
-Usage of ./purgerd: 
-  -i="0.0.0.0:8111": socket address where purge message are sent, '0.0.0.0:8111'
-  -o="0.0.0.0:1118": listening socket where purge message are sent to varnish reverse cli, '0.0.0.0:1118'
+Usage of purgerd:
+  -i="0.0.0.0:8111": socket where purge messages are sent, '0.0.0.0:8111'
+  -o="0.0.0.0:1118": listening socket where purge message are sent to varnish reverse cli, 0.0.0.0:1118
   -p=false: purge all the varnish cache on connection
-  -v: display version
+  -s="": varnish secret
+  -v=false: display version
 ```
 
 Run purgerd from $GOCODE/bin/purgerd. With no options it will listen to purge requests on 0.0.0.0:8111.
 Start varnish with the -M option to make it connect to the purger. (ex: -M localhost:1118 if you're running varnish on the same box)
+If your varnish cli needs [authentication](https://www.varnish-cache.org/trac/wiki/CLI#Authentication:Thegorydetails) pass the password with -s
 
 Client example
 ==============
