@@ -16,7 +16,9 @@ Usage of purgerd:
 ```
 
 Run purgerd from $GOCODE/bin/purgerd. With no options it will listen to purge requests on 0.0.0.0:8111.
+
 Start varnish with the -M option to make it connect to the purger. (ex: -M localhost:1118 if you're running varnish on the same box)
+
 If your varnish cli needs [authentication](https://www.varnish-cache.org/trac/wiki/CLI#Authentication:Thegorydetails) pass the password with -s
 
 Client example
