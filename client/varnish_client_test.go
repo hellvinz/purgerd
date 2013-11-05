@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func TestNewClient(t *testing.T) {
+func TestNewVarnishClient(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("Listen failed: %v", err)
@@ -25,13 +25,13 @@ func TestNewClient(t *testing.T) {
 	//}
 
 	wait := make(chan bool, 1)
-	client := NewClient(&c, wait)
+	client := NewVarnishClient(&c, wait)
 	if client == nil {
-		t.Fatalf("NewClient failed")
+		t.Fatalf("NewVarnishClient failed")
 	}
 }
 
-func TestClientReceive(t *testing.T) {
+func TestVarnishClientReceive(t *testing.T) {
 	messageSent := make(chan bool, 1)
 	messageReceived := make(chan []byte, 1)
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -59,19 +59,19 @@ func TestClientReceive(t *testing.T) {
 	}
 	defer c.Close()
 
-	//bye := func(tobedestroyed *Client){
+	//bye := func(tobedestroyed *VarnishClient){
 	//    fmt.Println("bye guys")
 	//}
 
 	wait := make(chan bool, 1)
-	client := NewClient(&c, wait)
+	client := NewVarnishClient(&c, wait)
 	if client == nil {
-		t.Fatal("NewClient failed")
+		t.Fatal("NewVarnishClient failed")
 	}
 	client.Receive([]byte("han"))
 	messageSent <- true
 	message := <-messageReceived
 	if string(message) != "ban.url han\n" {
-		t.Fatalf("Client.Receive failed expected \nban.url han\n got \n%s", message)
+		t.Fatalf("VarnishClient.Receive failed expected \nban.url han\n got \n%s", message)
 	}
 }

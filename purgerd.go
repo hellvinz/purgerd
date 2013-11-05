@@ -59,7 +59,7 @@ func setupPurgeSenderAndListen(outgoingAddress *string, purgeOnStartup bool, pub
 		logger.Info(fmt.Sprintln("New client:", utils.ReverseName(conn)))
 
 		// connect client to the pubsub purge
-		go handleClient(conn, publisher, purgeOnStartup, secret)
+		go handleVarnishClient(conn, publisher, purgeOnStartup, secret)
 	}
 	return
 }
@@ -94,12 +94,12 @@ func setupPurgeReceiver(incomingAddress *string, publisher *Publisher) {
 	return
 }
 
-//handleClient is used to forward message received to the client
-func handleClient(conn net.Conn, publisher *Publisher, purgeOnStartup bool, secret *string) {
+//handleVarnishClient is used to forward message received to the client
+func handleVarnishClient(conn net.Conn, publisher *Publisher, purgeOnStartup bool, secret *string) {
 	defer conn.Close()
 
 	wait := make(chan bool, 1)
-	client := client.NewClient(&conn, wait)
+	client := client.NewVarnishClient(&conn, wait)
 
 	err := client.AuthenticateIfNeeded(secret)
 	if err != nil {

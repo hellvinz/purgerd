@@ -10,15 +10,15 @@ import (
 	"syscall"
 )
 
-type Client struct {
+type VarnishClient struct {
 	messagesChannel chan []byte
 	conn            *net.Conn
 	workInProgess   chan bool
 	//exitFunc func(*Client)
 }
 
-func NewClient(conn *net.Conn, workInProgress chan bool) *Client {
-	client := new(Client)
+func NewVarnishClient(conn *net.Conn, workInProgress chan bool) *VarnishClient {
+	client := new(VarnishClient)
 	client.messagesChannel = make(chan []byte, 10)
 	client.conn = conn
 	client.workInProgess = workInProgress
@@ -26,11 +26,11 @@ func NewClient(conn *net.Conn, workInProgress chan bool) *Client {
 	return client
 }
 
-func (c *Client) Receive(message []byte) {
+func (c *VarnishClient) Receive(message []byte) {
 	c.messagesChannel <- message
 }
 
-func (c *Client) monitorMessages() {
+func (c *VarnishClient) monitorMessages() {
 	defer close(c.messagesChannel)
 	for {
 		message := <-c.messagesChannel
@@ -42,7 +42,7 @@ func (c *Client) monitorMessages() {
 	c.exit()
 }
 
-func (c *Client) sendMessage(message []byte) (err error) {
+func (c *VarnishClient) sendMessage(message []byte) (err error) {
 	if string(message) == "ping" {
 		err = c.sendString(message)
 	} else {
@@ -51,19 +51,19 @@ func (c *Client) sendMessage(message []byte) (err error) {
 	return
 }
 
-func (c *Client) exit() {
+func (c *VarnishClient) exit() {
 	c.workInProgess <- false
 }
 
 //sendPurge send a purge message to a client
 //it appends a ban.url to the pattern passed
-func (c *Client) SendPurge(pattern []byte) (err error) {
+func (c *VarnishClient) SendPurge(pattern []byte) (err error) {
 	err = c.sendString(append([]byte("ban.url "), pattern...))
 	return
 }
 
 //sendString is sending a raw string to a client
-func (c *Client) sendString(message []byte) (err error) {
+func (c *VarnishClient) sendString(message []byte) (err error) {
 	n, err := (*c.conn).Write(append(message, []byte("\n")...))
 	if n == 0 {
 		err = syscall.EPIPE
@@ -71,7 +71,7 @@ func (c *Client) sendString(message []byte) (err error) {
 	return
 }
 
-func (c *Client) AuthenticateIfNeeded(secret *string) (err error) {
+func (c *VarnishClient) AuthenticateIfNeeded(secret *string) (err error) {
 	// check if client need auth
 	message := make([]byte, 512)
 	(*c.conn).Read(message)
@@ -90,6 +90,6 @@ func (c *Client) AuthenticateIfNeeded(secret *string) (err error) {
 	return
 }
 
-func (c *Client) String() string {
+func (c *VarnishClient) String() string {
 	return utils.ReverseName(*c.conn)
 }
