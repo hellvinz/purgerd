@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"flag"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"runtime/pprof"
 	"syscall"
 	"time"
 )
@@ -28,11 +30,21 @@ func main() {
 	outgoingAddress := flag.String("o", "0.0.0.0:1118", "listening socket where purge message are sent to varnish reverse cli, 0.0.0.0:1118")
 	version := flag.Bool("v", false, "display version")
 	purgeOnStartUp := flag.Bool("p", false, "purge all the varnish cache on connection")
-	secret := flag.String("s", "", "varnish secret")
+	secretFile := flag.String("s", "", "path of the file containing the varnish secret")
 	flag.Parse()
 	if *version {
 		printVersion()
 		os.Exit(0)
+	}
+
+	var secret string
+	if *secretFile != "" {
+		var err error
+		secret, err = readSecretFile(*secretFile)
+		if err != nil {
+			logger.Crit(fmt.Sprintln(err))
+			os.Exit(1)
+		}
 	}
 
 	publisher := NewPublisher()
@@ -42,7 +54,7 @@ func main() {
 	go setupPurgeReceiver(incomingAddress, publisher)
 
 	// we're ready to listen varnish cli connection
-	setupPurgeSenderAndListen(outgoingAddress, *purgeOnStartUp, publisher, secret)
+	setupPurgeSenderAndListen(outgoingAddress, *purgeOnStartUp, publisher, &secret)
 }
 
 //setupPurgeSenderAndListen start listening to the socket where varnish cli connects
@@ -125,16 +137,44 @@ func handleVarnishClient(conn net.Conn, publisher *Publisher, purgeOnStartup boo
 //monitorSignals trap SIGUSR1 to print stats
 func monitorSignals(p *Publisher) {
 	c := make(chan os.Signal, 1)
-	signal.Notify(c, syscall.SIGUSR1)
+	signal.Notify(c, syscall.SIGUSR1, syscall.SIGINFO)
 	for {
-		<-c
-		clients := make([]string, 0)
-		callback := func(client Subscriber) {
-			clients = append(clients, client.String())
+		sig := <-c
+		switch sig {
+		case syscall.SIGINFO:
+			clients := make([]string, 0)
+			callback := func(client Subscriber) {
+				clients = append(clients, client.String())
+			}
+			p.dowithsubscribers(callback)
+			logger.Info(fmt.Sprintln("Purges sent:", p.Publishes, ". Connected Clients", clients))
+		case syscall.SIGUSR1:
+			f, err := os.Create("/tmp/purgerd_profile.pprof")
+			if err != nil {
+				logger.Crit(fmt.Sprintln(err))
+			}
+			err = pprof.StartCPUProfile(f)
+			if err == nil {
+				logger.Info("Starting CPU Profiling")
+			} else {
+				pprof.StopCPUProfile()
+				logger.Info("Stoping CPU Profiling")
+			}
 		}
-		p.dowithsubscribers(callback)
-		logger.Info(fmt.Sprintln("Purges sent:", p.Publishes, ". Connected Clients", clients))
 	}
+}
+
+func readSecretFile(secretFile string) (secret string, err error) {
+	file, err := os.Open(secretFile)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		secret = scanner.Text()
+	}
+	return
 }
 
 //version
