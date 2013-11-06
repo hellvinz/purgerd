@@ -12,7 +12,6 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"runtime/pprof"
 	"syscall"
 	"time"
 )
@@ -137,30 +136,15 @@ func handleVarnishClient(conn net.Conn, publisher *Publisher, purgeOnStartup boo
 //monitorSignals trap SIGUSR1 to print stats
 func monitorSignals(p *Publisher) {
 	c := make(chan os.Signal, 1)
-	signal.Notify(c, syscall.SIGUSR1, syscall.SIGINFO)
+	signal.Notify(c, syscall.SIGUSR1)
 	for {
-		sig := <-c
-		switch sig {
-		case syscall.SIGINFO:
-			clients := make([]string, 0)
-			callback := func(client Subscriber) {
-				clients = append(clients, client.String())
-			}
-			p.dowithsubscribers(callback)
-			logger.Info(fmt.Sprintln("Purges sent:", p.Publishes, ". Connected Clients", clients))
-		case syscall.SIGUSR1:
-			f, err := os.Create("/tmp/purgerd_profile.pprof")
-			if err != nil {
-				logger.Crit(fmt.Sprintln(err))
-			}
-			err = pprof.StartCPUProfile(f)
-			if err == nil {
-				logger.Info("Starting CPU Profiling")
-			} else {
-				pprof.StopCPUProfile()
-				logger.Info("Stoping CPU Profiling")
-			}
+		<-c
+		clients := make([]string, 0)
+		callback := func(client Subscriber) {
+			clients = append(clients, client.String())
 		}
+		p.dowithsubscribers(callback)
+		logger.Info(fmt.Sprintln("Purges sent:", p.Publishes, ". Connected Clients", clients))
 	}
 }
 
