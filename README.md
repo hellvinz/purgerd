@@ -32,6 +32,18 @@ socket.write('.*')
 socket.close()
 ```
 
+Netcat
+
+to receive purges
+```
+echo "200 0" | nc localhost 1118
+```
+
+to send purges
+```
+echo "mypurge" | nc localhost 8111
+```
+
 Requirements
 ============
 
@@ -46,3 +58,5 @@ Logging
 =======
 
 the purgerd logs to syslog
+
+to have some stats: killall -USR1 purgerd
