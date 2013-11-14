@@ -1,6 +1,6 @@
 package main
 
 type Subscriber interface {
-    Receive([]byte)
-    String() string
+	Receive([]byte)
+	String() string
 }

@@ -82,9 +82,10 @@ func setupPurgeReceiver(incomingAddress *string, publisher *Publisher) {
 	utils.CheckError(err, logger)
 
 	go func() {
+		ping := []byte("ping")
 		for {
 			time.Sleep(5 * time.Second)
-			publisher.Pub([]byte("ping"))
+			publisher.Pub(ping)
 		}
 	}()
 	for {
@@ -110,7 +111,7 @@ func setupPurgeReceiver(incomingAddress *string, publisher *Publisher) {
 func handleVarnishClient(conn net.Conn, publisher *Publisher, purgeOnStartup bool, secret *string) {
 	defer conn.Close()
 
-	wait := make(chan bool, 1)
+	wait := make(chan bool)
 	client := client.NewVarnishClient(&conn, wait)
 
 	err := client.AuthenticateIfNeeded(secret)

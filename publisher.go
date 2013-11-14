@@ -14,9 +14,9 @@ type Publisher struct {
 
 func NewPublisher() *Publisher {
 	publisher := Publisher{}
-	publisher.toberemovedsubscribers = make(chan Subscriber)
-	publisher.tobeaddedsubscribers = make(chan Subscriber)
-	publisher.messages = make(chan []byte)
+	publisher.toberemovedsubscribers = make(chan Subscriber, 1)
+	publisher.tobeaddedsubscribers = make(chan Subscriber, 10)
+	publisher.messages = make(chan []byte, 50)
 	publisher.Publishes = 0
 	go publisher.monitorsubscriptions()
 	go publisher.monitormessages()
@@ -72,9 +72,9 @@ func (p *Publisher) monitormessages() {
 }
 
 func (p *Publisher) dowithsubscribers(callback func(subscriber Subscriber)) {
-    p.m.Lock()
-    defer p.m.Unlock()
-    for _, s := range p.subscribers {
-        callback(s)
-    }
+	p.m.Lock()
+	defer p.m.Unlock()
+	for _, s := range p.subscribers {
+		callback(s)
+	}
 }

@@ -65,3 +65,22 @@ Type 'start' to launch worker process.
     }
 
 }
+
+func BenchmarkCliparserLong(b *testing.B){
+    b.StopTimer()
+    in := []byte(`200 233     
+-----------------------------
+Varnish Cache CLI 1.0
+-----------------------------
+Darwin,13.0.0,x86_64,-sfile,-smalloc,-hcritbit
+
+Type 'help' for command list.
+Type 'quit' to close CLI session.
+Type 'start' to launch worker process.
+`)
+
+    b.StartTimer()
+    for i := 0; i < b.N; i++ {
+        Cliparser(in)
+    }
+}

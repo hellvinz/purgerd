@@ -11,7 +11,7 @@ Usage of purgerd:
   -i="0.0.0.0:8111": socket where purge messages are sent, '0.0.0.0:8111'
   -o="0.0.0.0:1118": listening socket where purge message are sent to varnish reverse cli, 0.0.0.0:1118
   -p=false: purge all the varnish cache on connection
-  -s="": varnish secret
+  -s="": path of the file containing the varnish secret
   -v=false: display version
 ```
 

@@ -2,24 +2,24 @@ package utils
 
 import "net"
 
-var hostCache map[net.Conn]string
+var hostCache map[string]string
 
 func init(){
-    hostCache = map[net.Conn]string{}
+    hostCache = map[string]string{}
 }
 
 //get reverse name
 func ReverseName(conn net.Conn) (name string) {
-	name = hostCache[conn]
+    ip, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
+	name = hostCache[ip]
 	if name == "" {
-		ip, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
 		names, err := net.LookupAddr(ip)
 		if err == nil {
 			name = names[0]
 		} else {
 			name = ip
 		}
-		hostCache[conn] = name
-	}
+		hostCache[ip] = name
+    }
 	return name
 }
