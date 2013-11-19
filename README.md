@@ -3,6 +3,8 @@ Purgerd
 
 This tool forward a purge request received to a pool of varnish connected via the reverse cli
 
+It uses [ban.url](https://www.varnish-cache.org/docs/3.0/reference/varnish-cli.html#term-ban-url-regexp) and basically sends to the connected varnish the string it receives prefixed by ban.url
+
 Usage
 =====
 
