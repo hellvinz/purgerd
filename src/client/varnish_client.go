@@ -1,3 +1,4 @@
+//go:generate ragel -Z -o cliparser.go cliparser.rl
 package client
 
 import (
@@ -5,9 +6,9 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/hellvinz/purgerd/utils"
 	"net"
 	"syscall"
+	"utils"
 )
 
 type VarnishClient struct {
@@ -56,9 +57,9 @@ func (c *VarnishClient) exit() {
 }
 
 //sendPurge send a purge message to a client
-//it appends a ban.url to the pattern passed
+//it appends a ban req.url ~ to the pattern passed
 func (c *VarnishClient) SendPurge(pattern []byte) (err error) {
-	err = c.sendString(append([]byte("ban.url "), pattern...))
+	err = c.sendString(append([]byte("ban req.url ~ "), pattern...))
 	return
 }
 

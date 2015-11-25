@@ -1,9 +1,11 @@
 Purgerd
 =======
 
-This tool forward a purge request received to a pool of varnish connected via the reverse cli
+This tool forward a purge request received to a pool of varnish connected via the Varnish reverse cli.
 
-It uses [ban.url](https://www.varnish-cache.org/docs/3.0/reference/varnish-cli.html#term-ban-url-regexp) and basically sends to the connected varnish the string it receives prefixed by ban.url
+It uses [ban](https://www.varnish-cache.org/docs/4.0/reference/varnish-cli.html#ban-expressions) and basically sends to the connected varnish the string it receives prefixed by ban req.url ~
+
+It is implement as a PubSub, varnishes subscribes to purges on the purgerd daemon, and clients push purges to the purgerd daemon. When a varnish vanish (server reboot...) it is removed from subscribers.
 
 Usage
 =====
@@ -50,11 +52,19 @@ Requirements
 ============
 
 Go: http://golang.org/
+Gb: http://getgb.io/
 
 Install
 =======
 
-go get github.com/hellvinz/purgerd
+This project uses [gb](http://getgb.io/) to build the project
+
+```
+git clone https://github.com/hellvinz/purgerd.git
+cd purgerd
+gb generate (optional: if you want to regenerate varnish cli parser. Need [ragel](http://www.colm.net/open-source/ragel/))
+gb build all
+```
 
 Logging
 =======

@@ -27,8 +27,12 @@ func TestPublisherSub(t *testing.T) {
 	publisher := NewPublisher()
 	receiver := &DummySubscriber{}
 	publisher.Sub(receiver)
-	time.Sleep(100 * time.Nanosecond)
-	if publisher.subscribers[0] != receiver {
+	time.Sleep(1 * time.Second)
+	var subscribers []Subscriber
+	publisher.dowithsubscribers(func(subscriber Subscriber) {
+		subscribers = append(subscribers, subscriber)
+	})
+	if subscribers[0] != receiver {
 		t.Errorf("Publisher.Sub should add argument to the internal subscribers slice")
 	}
 }
@@ -67,7 +71,11 @@ func TestPublisherUnsub(t *testing.T) {
 	time.Sleep(100 * time.Nanosecond)
 	publisher.Unsub(receiver)
 	time.Sleep(100 * time.Nanosecond)
-	if len(publisher.subscribers) != 0 {
+	subscribersCount := 0
+	publisher.dowithsubscribers(func(_subscriber Subscriber) {
+		subscribersCount = subscribersCount + 1
+	})
+	if subscribersCount != 0 {
 		t.Errorf("subscriber should be removed when calling Publisher.Unsub")
 	}
 }

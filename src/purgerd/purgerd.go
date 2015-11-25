@@ -3,10 +3,9 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"client"
 	"flag"
 	"fmt"
-	"github.com/hellvinz/purgerd/client"
-	"github.com/hellvinz/purgerd/utils"
 	"io/ioutil"
 	"log/syslog"
 	"net"
@@ -14,6 +13,7 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+	"utils"
 )
 
 var logger *syslog.Writer
@@ -72,7 +72,6 @@ func setupPurgeSenderAndListen(outgoingAddress *string, purgeOnStartup bool, pub
 		// connect client to the pubsub purge
 		go handleVarnishClient(conn, publisher, purgeOnStartup, secret)
 	}
-	return
 }
 
 //setupPurgeReceiver set up the tcp socket where ban messages come
@@ -104,7 +103,6 @@ func setupPurgeReceiver(incomingAddress *string, publisher *Publisher) {
 			}
 		}(conn)
 	}
-	return
 }
 
 //handleVarnishClient is used to forward message received to the client
@@ -159,10 +157,10 @@ func readSecretFile(secretFile string) (secret string, err error) {
 	for scanner.Scan() {
 		secret = scanner.Text()
 	}
-	return
+	return secret, err
 }
 
 //version
 func printVersion() {
-	fmt.Println("0.0.2")
+	fmt.Println("0.0.3")
 }

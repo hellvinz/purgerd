@@ -1,2 +1,3 @@
-purgerd
+bin/purgerd
 *.swp
+pkg

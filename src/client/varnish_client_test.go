@@ -43,7 +43,7 @@ func TestVarnishClientReceive(t *testing.T) {
 	go func(ln net.Listener) {
 		c, _ := ln.Accept()
 		<-messageSent
-		message := make([]byte, 12)
+		message := make([]byte, 18)
 		_, err := c.Read(message)
 		if err != nil {
 			fmt.Println(err)
@@ -71,7 +71,7 @@ func TestVarnishClientReceive(t *testing.T) {
 	client.Receive([]byte("han"))
 	messageSent <- true
 	message := <-messageReceived
-	if string(message) != "ban.url han\n" {
-		t.Fatalf("VarnishClient.Receive failed expected \nban.url han\n got \n%s", message)
+	if string(message) != "ban req.url ~ han\n" {
+		t.Fatalf("VarnishClient.Receive failed expected \nban req.url ~ han\n got \n%s", message)
 	}
 }
